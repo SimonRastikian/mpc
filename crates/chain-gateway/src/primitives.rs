@@ -1,11 +1,12 @@
 //! This file contains the primitives we need to interact with the NEAR blockchain:
 //!     - SyncChecker --> checks whether the node is fully synced
+//!     - LatestFinalBlockInfoFecher --> fetches height and hash of the latest final block
+//!     - SignedTransactionSubmitter --> submits  asigned transaction to the blockchain
 //!     - ViewFunctionQueroier --> can call view methods on a contract
-//!     - todo(#2342): LatestFinalBlockInfoFecher --> fetches height and hash of the latest final block
-//!     - todo(#2342): SignedTransactionSubmitter --> submits  asigned transaction to the blockchain
-use crate::types::RawObservedState;
+use crate::types::{LatestFinalBlockInfo, RawObservedState};
 use async_trait::async_trait;
 use near_account_id::AccountId;
+use near_indexer::near_primitives::transaction::SignedTransaction;
 use std::time::Duration;
 
 /// Low-level trait for checking indexer sync status.
@@ -34,6 +35,22 @@ pub trait SyncChecker: Send + Sync + 'static {
 }
 
 #[async_trait]
+pub trait LatestFinalBlockInfoFetcher: Send + Sync + 'static {
+    type Error: std::error::Error + Send + Sync + 'static;
+    async fn latest_final_block(&self) -> Result<LatestFinalBlockInfo, Self::Error>;
+}
+
+/// note: this is the only trait that exposes NEAR internals, but it's only used by tests
+#[async_trait]
+pub trait SignedTransactionSubmitter: Send + Sync + 'static {
+    type Error: std::error::Error + Send + Sync + 'static;
+    async fn submit_signed_transaction(
+        &self,
+        transaction: SignedTransaction,
+    ) -> Result<(), Self::Error>;
+}
+
+#[async_trait]
 pub trait ViewFunctionQuerier: Send + Sync + 'static {
     type Error: std::error::Error + Send + Sync + 'static;
     async fn view_function_query(
@@ -43,3 +60,5 @@ pub trait ViewFunctionQuerier: Send + Sync + 'static {
         args: &[u8],
     ) -> Result<RawObservedState, Self::Error>;
 }
+
+// todo: test wait_for_full_sync

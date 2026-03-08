@@ -5594,6 +5594,7 @@ dependencies = [
  "bs58 0.5.1",
  "built",
  "bytes",
+ "chain-gateway",
  "clap",
  "contract-interface",
  "derive_more 2.1.1",

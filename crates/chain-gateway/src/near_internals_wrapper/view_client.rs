@@ -8,8 +8,8 @@ use crate::{
     errors::{
         NearViewClientError, NearViewClientErrorKind, UnexpectedResponseError, ViewClientQuery,
     },
-    primitives::ViewFunctionQuerier,
-    types::ObservedState,
+    primitives::{LatestFinalBlockInfoFetcher, ViewFunctionQuerier},
+    types::{LatestFinalBlockInfo, ObservedState},
 };
 
 /// Arc-wrapper around near-internal ViewClientActor
@@ -32,9 +32,36 @@ impl ViewClientWrapper {
 }
 
 #[async_trait]
+impl LatestFinalBlockInfoFetcher for ViewClientWrapper {
+    type Error = NearViewClientError;
+    /// queries the near view client for the latest final block info
+    async fn latest_final_block(&self) -> Result<LatestFinalBlockInfo, Self::Error> {
+        let block_query =
+            near_client::GetBlock(near_indexer_primitives::types::BlockReference::Finality(
+                near_indexer_primitives::types::Finality::Final,
+            ));
+        let send_result = self.view_client.send_async(block_query).await;
+        let response_result = send_result.map_err(|err| NearViewClientError {
+            query: ViewClientQuery::LatestFinalBlock,
+            kind: NearViewClientErrorKind::SendError,
+            source: Arc::new(err),
+        })?;
+        let response = response_result.map_err(|err| NearViewClientError {
+            query: ViewClientQuery::LatestFinalBlock,
+            kind: NearViewClientErrorKind::ResponseError,
+            source: Arc::new(err),
+        })?;
+        Ok(LatestFinalBlockInfo {
+            observed_at: response.header.height.into(),
+            value: response.header.hash,
+        })
+    }
+}
+
+#[async_trait]
 impl ViewFunctionQuerier for ViewClientWrapper {
     type Error = NearViewClientError;
-    /// calls view method contract_id::method_name(args) and returns the result
+    /// constructs a view function query or contract_id::method_name(args) and retunrs the result
     async fn view_function_query(
         &self,
         contract_id: &AccountId,

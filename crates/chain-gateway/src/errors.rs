@@ -6,6 +6,18 @@ use thiserror::Error;
 pub type SharedError = Arc<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug, Error)]
+pub enum NearRpcClientError {
+    #[error("failed to submit transaction to rpc client")]
+    SubmitTransaction {
+        #[source]
+        source: SharedError,
+    },
+
+    #[error("unexpected process transaction response: {response}")]
+    UnexpectedProcessTransactionResponse { response: String },
+}
+
+#[derive(Debug, Error)]
 pub enum NearClientError {
     #[error("failed to send async")]
     AsyncSendError {
@@ -30,8 +42,7 @@ pub struct NearViewClientError {
 
 #[derive(Debug)]
 pub enum ViewClientQuery {
-    // todo(#2342)
-    // LatestFinalBlock,
+    LatestFinalBlock,
     ViewMethod {
         contract_id: AccountId,
         method_name: String,
@@ -41,8 +52,7 @@ pub enum ViewClientQuery {
 impl fmt::Display for ViewClientQuery {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            // todo(#2342):
-            // Self::LatestFinalBlock => write!(f, "latest final block query"),
+            Self::LatestFinalBlock => write!(f, "latest final block query"),
             Self::ViewMethod {
                 contract_id,
                 method_name,
@@ -114,6 +124,24 @@ pub enum ChainGatewayError {
 
     #[error("deserialization error")]
     Deserialization {
+        #[source]
+        source: SharedError,
+    },
+
+    #[error("rpc client error")]
+    RpcClient {
+        #[source]
+        source: SharedError,
+    },
+
+    #[error("failed to fetch latest final block")]
+    FetchFinalBlock {
+        #[source]
+        source: SharedError,
+    },
+
+    #[error("failed to submit signed transaction")]
+    SubmitTransaction {
         #[source]
         source: SharedError,
     },

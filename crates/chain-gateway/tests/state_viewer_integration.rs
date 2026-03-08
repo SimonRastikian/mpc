@@ -7,13 +7,14 @@ use chain_gateway::types::ObservedState;
 use near_indexer::near_primitives::hash::hash;
 use near_indexer::near_primitives::types::Finality;
 use std::path::Path;
+use tokio::sync::mpsc;
 
 const TEST_CONTRACT_ACCOUNT: &str = "test-contract.near";
 
 /// spawns a local neard node, inserts a test contract and checks if viewing a valid contract method succeeds
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_view_contract_state() {
-    let (gw, _dir) = setup_chain_gateway().await;
+    let (gw, _stream, _dir) = setup_chain_gateway().await;
 
     let value: ObservedState<String> = gw
         .view(
@@ -30,7 +31,7 @@ async fn test_view_contract_state() {
 /// spawns a local neard node, inserts a test contract and checks if viewing an invalid contract method fails
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_view_nonexistent_method_returns_error() {
-    let (gw, _dir) = setup_chain_gateway().await;
+    let (gw, _stream, _dir) = setup_chain_gateway().await;
 
     let result = gw
         .view::<NoArgs, String>(
@@ -51,7 +52,7 @@ async fn test_view_nonexistent_method_returns_error() {
 /// succeeds
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_subscription_receives_initial_value() {
-    let (gw, _dir) = setup_chain_gateway().await;
+    let (gw, _stream, _dir) = setup_chain_gateway().await;
 
     let mut sub = gw
         .subscribe::<String>(TEST_CONTRACT_ACCOUNT.parse().unwrap(), "get_greeting")
@@ -60,8 +61,7 @@ async fn test_subscription_receives_initial_value() {
     let res = sub.latest().expect("subscription latest should succeed");
     assert_eq!(res.value, "hello from test");
 }
-
-// todo(#2343): once we have transactions, add a method that changes the contract state. the verify that
+// todo: once you have transactions, add a method that changes the contract state. the verify that
 // the viewer sees it correctly
 
 /// Minimal WASM contract: `get_greeting` returns `"hello from test"`.
@@ -164,6 +164,7 @@ fn randomize_config_ports(home_dir: &Path) {
 
 async fn setup_chain_gateway() -> (
     chain_gateway::chain_gateway::ChainGateway,
+    mpsc::Receiver<near_indexer::StreamerMessage>,
     tempfile::TempDir,
 ) {
     let dir = tempfile::tempdir().unwrap();
@@ -199,9 +200,9 @@ async fn setup_chain_gateway() -> (
         validate_genesis: false,
     };
 
-    let gw = chain_gateway::chain_gateway::start(indexer_config)
+    let (gw, stream) = chain_gateway::chain_gateway::start_with_streamer(indexer_config)
         .await
         .expect("start_with_streamer should succeed");
 
-    (gw, dir)
+    (gw, stream, dir)
 }
